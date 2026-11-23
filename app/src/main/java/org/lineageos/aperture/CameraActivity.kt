@@ -845,6 +845,10 @@ open class CameraActivity : AppCompatActivity(R.layout.activity_camera) {
                         it.cause
                     )
 
+                    if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                        return@collect
+                    }
+
                     val showToast = { stringId: Int ->
                         Toast.makeText(
                             this@CameraActivity,
@@ -1005,6 +1009,16 @@ open class CameraActivity : AppCompatActivity(R.layout.activity_camera) {
 
         launch {
             viewModel.capturedMedia.collectLatest { capturedMedia ->
+                // CameraX publishes an interruption resilient recording in the MediaStore
+                // while it's being written, no frame can be decoded from it yet. The
+                // recorded video is set once the recording gets finalized.
+                val cameraState = viewModel.cameraState.value
+                if (cameraState.isRecordingVideo ||
+                    cameraState == CameraState.PRE_RECORDING_VIDEO
+                ) {
+                    return@collectLatest
+                }
+
                 updateGalleryButton(capturedMedia.firstOrNull(), false)
             }
         }
